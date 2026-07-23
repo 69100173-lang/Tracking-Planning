@@ -76,6 +76,8 @@
       border-radius: 12px;
       text-align: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      max-width: 320px;
+      width: 90%;
     }
     .pin-box input[type="password"] {
       font-size: 24px;
@@ -90,7 +92,7 @@
       color: #ffffff !important;
       background: #1e1e2f;
     }
-    .pin-box button {
+    .pin-box button.btn-primary {
       background: #4f46e5;
       color: white;
       border: none;
@@ -98,9 +100,10 @@
       font-size: 16px;
       border-radius: 6px;
       cursor: pointer;
+      width: 100%;
     }
-    .pin-box button:hover { background: #4338ca; }
-    #error-msg { color: #ff6b6b; margin-top: 10px; font-size: 14px; }
+    .pin-box button.btn-primary:hover { background: #4338ca; }
+    #error-msg { color: #ff6b6b; margin-top: 10px; font-size: 13px; word-break: break-all; }
   </style>
 </head>
 <body class="font-body">
@@ -109,11 +112,16 @@
   <div id="pin-overlay">
     <div class="pin-box">
       <h2 class="text-xl font-bold mb-2">🔒 กรุณากรอกรหัสผ่าน</h2>
-      <p class="text-sm text-gray-300 mb-4">ใส่รหัสผ่าน 6 หลักเพื่อเข้าใช้งานระบบ</p>
+      <p class="text-xs text-gray-300 mb-4">ใส่รหัสผ่าน 6 หลักเพื่อเข้าใช้งานระบบ</p>
       <input type="password" id="pinInput" maxlength="6" placeholder="••••••">
       <br>
-      <button onclick="verifyPin()">ยืนยันรหัสผ่าน</button>
+      <button onclick="verifyPin()" class="btn-primary">ยืนยันรหัสผ่าน</button>
       <p id="error-msg"></p>
+      
+      <div class="mt-6 pt-4 border-t border-gray-700 flex flex-col gap-2">
+        <button onclick="promptChangeUrl()" class="text-xs text-gray-400 hover:text-white underline">⚙️ แก้ไข Web App URL</button>
+        <button onclick="unlockApp()" class="text-xs text-gray-500 hover:text-gray-300">🔓 ข้ามการล็อกอิน (โหมดออฟไลน์)</button>
+      </div>
     </div>
   </div>
 
@@ -204,6 +212,7 @@
       <div class="flex items-center justify-center gap-2">
         <p class="text-xs text-inksoft/70 text-center" id="persistNote">กำลังตรวจสอบสถานะการบันทึก…</p>
         <button id="sheetsSettingsBtn" class="text-xs text-inksoft/60 underline hover:text-ink shrink-0" aria-label="ตั้งค่า Google Sheets">ตั้งค่า Google Sheets</button>
+        <button onclick="lockApp()" class="text-xs text-margin underline shrink-0 ml-2">🔒 ล็อกระบบ</button>
       </div>
 
       <form id="sheetsSettingsForm" class="hidden fade-in mt-3 card-box p-4 max-w-md mx-auto flex flex-col gap-2 text-sm">
@@ -221,15 +230,19 @@
 <script>
 /* ---------------- Persistence (Google Sheets via Apps Script Web App) ---------------- */
 const SHEETS_URL_KEY = 'lifePlanSheetsUrl';
-
-// ใส่ Web App URL ของคุณไว้เป็นค่าเริ่มต้นอัตโนมัติ
 const DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw3rtJFtAkuTNtythNx1qIT2mlyyc6y-C6TEkSxbw-G2X6Sflo1jtFFw0waS_mu6SMo/exec";
-if (!localStorage.getItem(SHEETS_URL_KEY)) {
-  localStorage.setItem(SHEETS_URL_KEY, DEFAULT_WEB_APP_URL);
-}
 
 function getSheetsUrl(){ return localStorage.getItem(SHEETS_URL_KEY) || DEFAULT_WEB_APP_URL; }
 function hasSheetsUrl(){ return !!getSheetsUrl(); }
+
+function promptChangeUrl() {
+  const currentUrl = getSheetsUrl();
+  const newUrl = prompt("กรุณากรอก Google Apps Script Web App URL ใหม่:", currentUrl);
+  if (newUrl !== null && newUrl.trim() !== "") {
+    localStorage.setItem(SHEETS_URL_KEY, newUrl.trim());
+    alert("บันทึก URL ใหม่เรียบร้อยแล้ว กรุณาลองกรอก PIN อีกครั้ง");
+  }
+}
 
 /* ---------------- System Authentication (PIN Check) ---------------- */
 async function verifyPin() {
@@ -251,7 +264,10 @@ async function verifyPin() {
   errorMsg.innerText = "กำลังตรวจสอบรหัส...";
 
   try {
-    const response = await fetch(`${webAppUrl}?pin=${pin}`);
+    const response = await fetch(`${webAppUrl}?pin=${encodeURIComponent(pin)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
     const result = await response.json();
 
     if (result.success) {
@@ -264,13 +280,20 @@ async function verifyPin() {
   } catch (err) {
     console.error(err);
     errorMsg.style.color = "#ff6b6b";
-    errorMsg.innerText = "เกิดข้อผิดพลาดในการเชื่อมต่อ";
+    errorMsg.innerText = "❌ เกิดข้อผิดพลาดในการเชื่อมต่อ (" + err.message + ")";
   }
 }
 
 function unlockApp() {
   document.getElementById("pin-overlay").style.display = "none";
   document.getElementById("main-app").style.display = "block";
+}
+
+function lockApp() {
+  document.getElementById("pinInput").value = "";
+  document.getElementById("error-msg").innerText = "";
+  document.getElementById("pin-overlay").style.display = "flex";
+  document.getElementById("main-app").style.display = "none";
 }
 
 /* ---------------- Life Plan Tracker Logic ---------------- */
@@ -589,10 +612,8 @@ document.getElementById('sheetsUrlClear').addEventListener('click', () => {
 
 /* Initialize Application */
 (async function init(){
-  // ตรวจสอบสถานะการล็อกอิน
-  if (localStorage.getItem("isAuth") === "true") {
-    unlockApp();
-  }
+  // ล้างการบันทึกสถานะ Auth เก่าที่จำไว้
+  localStorage.removeItem("isAuth");
   
   await loadState();
   renderProjects();
