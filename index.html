@@ -255,7 +255,6 @@ async function verifyPin() {
     const result = await response.json();
 
     if (result.success) {
-      localStorage.setItem("isAuth", "true");
       unlockApp();
     } else {
       errorMsg.style.color = "#ff6b6b";
