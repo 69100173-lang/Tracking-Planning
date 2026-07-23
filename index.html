@@ -108,24 +108,19 @@
 </head>
 <body class="font-body">
 
-  <!-- 🔒 1. หน้าจอเด้งขอกรอก PIN -->
+  <!-- 🔒 1. หน้าจอเด้งขอกรอก PIN (ตัดปุ่มทางลัดที่ไม่ปลอดภัยออกแล้ว) -->
   <div id="pin-overlay">
     <div class="pin-box">
       <h2 class="text-xl font-bold mb-2">🔒 กรุณากรอกรหัสผ่าน</h2>
       <p class="text-xs text-gray-300 mb-4">ใส่รหัสผ่าน 6 หลักเพื่อเข้าใช้งานระบบ</p>
-      <input type="password" id="pinInput" maxlength="6" placeholder="••••••">
+      <input type="password" id="pinInput" maxlength="6" placeholder="••••••" onkeyup="if(event.key==='Enter') verifyPin()">
       <br>
       <button onclick="verifyPin()" class="btn-primary">ยืนยันรหัสผ่าน</button>
       <p id="error-msg"></p>
-      
-      <div class="mt-6 pt-4 border-t border-gray-700 flex flex-col gap-2">
-        <button onclick="promptChangeUrl()" class="text-xs text-gray-400 hover:text-white underline">⚙️ แก้ไข Web App URL</button>
-        <button onclick="unlockApp()" class="text-xs text-gray-500 hover:text-gray-300">🔓 ข้ามการล็อกอิน (โหมดออฟไลน์)</button>
-      </div>
     </div>
   </div>
 
-  <!-- 🌐 2. เนื้อหาเว็บหลัก (ซ่อนไว้รอปลดล็อก) -->
+  <!-- 🌐 2. เนื้อหาเว็บหลัก (ซ่อนไว้รอปลดล็อกด้วย PIN เท่านั้น) -->
   <div id="main-app" style="display: none;">
     <div class="margin-line"></div>
 
@@ -235,15 +230,6 @@ const DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw3rtJFtAku
 function getSheetsUrl(){ return localStorage.getItem(SHEETS_URL_KEY) || DEFAULT_WEB_APP_URL; }
 function hasSheetsUrl(){ return !!getSheetsUrl(); }
 
-function promptChangeUrl() {
-  const currentUrl = getSheetsUrl();
-  const newUrl = prompt("กรุณากรอก Google Apps Script Web App URL ใหม่:", currentUrl);
-  if (newUrl !== null && newUrl.trim() !== "") {
-    localStorage.setItem(SHEETS_URL_KEY, newUrl.trim());
-    alert("บันทึก URL ใหม่เรียบร้อยแล้ว กรุณาลองกรอก PIN อีกครั้ง");
-  }
-}
-
 /* ---------------- System Authentication (PIN Check) ---------------- */
 async function verifyPin() {
   const pin = document.getElementById("pinInput").value;
@@ -251,7 +237,7 @@ async function verifyPin() {
   const webAppUrl = getSheetsUrl();
 
   if (!webAppUrl) {
-    errorMsg.innerText = "❌ กรุณาตั้งค่า Web App URL ในระบบก่อน";
+    errorMsg.innerText = "❌ ไม่พบ URL สำหรับเชื่อมต่อระบบ";
     return;
   }
 
@@ -280,7 +266,7 @@ async function verifyPin() {
   } catch (err) {
     console.error(err);
     errorMsg.style.color = "#ff6b6b";
-    errorMsg.innerText = "❌ เกิดข้อผิดพลาดในการเชื่อมต่อ (" + err.message + ")";
+    errorMsg.innerText = "❌ รหัสผ่านไม่ถูกต้อง หรือเชื่อมต่อไม่ได้";
   }
 }
 
@@ -612,9 +598,7 @@ document.getElementById('sheetsUrlClear').addEventListener('click', () => {
 
 /* Initialize Application */
 (async function init(){
-  // ล้างการบันทึกสถานะ Auth เก่าที่จำไว้
   localStorage.removeItem("isAuth");
-  
   await loadState();
   renderProjects();
   renderTimeline();
